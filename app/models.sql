@@ -1,0 +1,2 @@
+-- Criação das tabelas do Agro Zap em PostgreSQL + PostGIS.
+-- Estrutura inicial; implementação do modelo de dados pendente.

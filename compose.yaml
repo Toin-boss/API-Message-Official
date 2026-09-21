@@ -1,0 +1,21 @@
+services:
+  postgres:
+    build: .
+
+    container_name: agrozap-postgres
+
+    environment:
+      POSTGRES_DB: agrozap
+      POSTGRES_USER: dvlp-inteva
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - postgres_data_agrozap:/var/lib/postgresql/data 
+
+    restart: unless-stopped
+
+volumes:
+  postgres_data_agrozap: 
