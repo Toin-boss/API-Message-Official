@@ -5,9 +5,13 @@ Estrutura inicial; implementação pendente.
 import os, hmac, hashlib, logging
 from json import JSONDecodeError
 from dotenv import load_dotenv
-from fastapi import APIRouter, Query, HTTPException, Request
 from typing import Annotated
+from app.database import save_message
+from datetime import timezone, datetime
 from fastapi.responses import PlainTextResponse
+from starlette.concurrency import run_in_threadpool
+from fastapi import APIRouter, Query, HTTPException, Request
+
 
 
 load_dotenv()
@@ -59,7 +63,7 @@ async def receive_webhook(request: Request):
     if payload.get("object") != "whatsapp_business_account":
         raise HTTPException(status_code=400, detail="Objeto do webhook não suportado")
 
-    entries = payload.get("entry")
+    entries = payload.get("entry") #Getting the entry of the JSON 
     if not isinstance(entries, list):
         raise HTTPException(status_code=400, detail="O campo entry deve ser uma lista")
 
@@ -80,11 +84,11 @@ async def receive_webhook(request: Request):
                 continue
 
             #Checking if the element value is a dict    
-            value = change.get("value")
+            value = change.get("value") #Getting the value of the JSON 
             if not isinstance(value, dict):  
                 raise HTTPException(status_code=400, detail="O campo value deve ser um objeto JSON")
 
-            messages = value.get("messages", [])
+            messages = value.get("messages", []) #Getting the message of the JSON 
             if not isinstance(messages, list):
                 raise HTTPException(status_code=400, detail="O campo messsages deve ser um lista")
 
@@ -92,24 +96,47 @@ async def receive_webhook(request: Request):
                 if not isinstance(message, dict):
                     raise HTTPException(status_code=400, detail="Cada item de mensagens dever ser um objeto JSON")
 
-                message_id = message.get("id")
-                sender = message.get("from")
-                message_type = message.get("type")
+                #The variables that catch the values from JSON elements
+                message_id = message.get("id") #Getting the id of the JSON 
+                sender = message.get("from") #Getting the from of the JSON 
+                message_type = message.get("type") #Getting the type of the JSON 
+                message_timestamp = message.get("timestamp") #Getting the timestamp of the JSON 
 
                 if message_type != "text":
                     continue
 
+                #Checking if the element id is a string
+                if not isinstance(message_id, str) or not message_id:
+                    raise HTTPException(status_code=400, detail="O campo id deve ser uma string") 
+                
+                #Checking if the element from is a string
+                if not isinstance(sender, str) or not sender:
+                    raise HTTPException(status_code=400, detail="O campo from deve ser uma string") 
+
+                #Converting the element timestamp into a UTC date
+                try: 
+                    sent_at = datetime.fromtimestamp(int(message_timestamp), timezone.utc)
+
+                except (TypeError, ValueError, OverflowError, OSError):
+                    raise HTTPException(status_code=400, detail="Timestamp da mensagem inválido")
+
+                #Getting the text of the JSON 
                 text_data = message.get("text")
 
                 #Checking if the element text is a dict
                 if not isinstance(text_data, dict):
                     raise HTTPException(status_code=400, detail="O campo text deve ser um objeto JSON")
 
+                #Getting the body of the JSON
                 message_text = text_data.get("body")
 
+                #Checking if the element body is a string
                 if not isinstance(message_text, str):
                     raise HTTPException(status_code=400, detail="O campo text.body deve ser uma string")
 
+                #Passing the variables that store the values of the JSON elements to the save_message function
+                await run_in_threadpool(save_message, message_id, sender, sent_at, message_type, message_text, payload)
+                
                 logger.info("Mensagem de texto recebida")
                 
     return PlainTextResponse("EVENT_RECEIVED", status_code=200)
