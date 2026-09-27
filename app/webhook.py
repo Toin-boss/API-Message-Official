@@ -6,11 +6,12 @@ import os, hmac, hashlib, logging
 from json import JSONDecodeError
 from dotenv import load_dotenv
 from typing import Annotated
-from app.database import save_message
+from app.database import save_message, save_audio_message
+from app.media import process_media_download
 from datetime import timezone, datetime
 from fastapi.responses import PlainTextResponse
 from starlette.concurrency import run_in_threadpool
-from fastapi import APIRouter, Query, HTTPException, Request
+from fastapi import APIRouter, Query, HTTPException, Request, BackgroundTasks
 
 
 
@@ -39,7 +40,7 @@ async def verify_webhook(hub_mode: Annotated[str, Query(alias="hub.mode")],     
 
 
 @router.post("/webhook")
-async def receive_webhook(request: Request):
+async def receive_webhook(request: Request, background_task: BackgroundTasks):
 
     #Calculation of the expected signature
     body = await request.body()
@@ -102,7 +103,7 @@ async def receive_webhook(request: Request):
                 message_type = message.get("type") #Getting the type of the JSON 
                 message_timestamp = message.get("timestamp") #Getting the timestamp of the JSON 
 
-                if message_type != "text":
+                if message_type not in ("text", "audio"):
                     continue
 
                 #Checking if the element id is a string
@@ -120,23 +121,47 @@ async def receive_webhook(request: Request):
                 except (TypeError, ValueError, OverflowError, OSError):
                     raise HTTPException(status_code=400, detail="Timestamp da mensagem inválido")
 
-                #Getting the text of the JSON 
-                text_data = message.get("text")
-
-                #Checking if the element text is a dict
-                if not isinstance(text_data, dict):
-                    raise HTTPException(status_code=400, detail="O campo text deve ser um objeto JSON")
-
-                #Getting the body of the JSON
-                message_text = text_data.get("body")
-
-                #Checking if the element body is a string
-                if not isinstance(message_text, str):
-                    raise HTTPException(status_code=400, detail="O campo text.body deve ser uma string")
-
-                #Passing the variables that store the values of the JSON elements to the save_message function
-                await run_in_threadpool(save_message, message_id, sender, sent_at, message_type, message_text, payload)
+                if message_type == "text":
                 
-                logger.info("Mensagem de texto recebida")
+                    #Getting the text of the JSON 
+                    text_data = message.get("text")
+
+                    #Checking if the element text is a dict
+                    if not isinstance(text_data, dict):
+                        raise HTTPException(status_code=400, detail="O campo text deve ser um objeto JSON")
+
+                    #Getting the body of the JSON
+                    message_text = text_data.get("body")
+
+                    #Checking if the element body is a string
+                    if not isinstance(message_text, str):
+                        raise HTTPException(status_code=400, detail="O campo text.body deve ser uma string")
+
+                    #Passing the variables that store the values of the JSON elements to the save_message function
+                    await run_in_threadpool(save_message, message_id, sender, sent_at, message_type, message_text, payload)
+                
+                    logger.info("Mensagem de texto recebida")
+
+                elif message_type == "audio":
+                    audio_data = message.get("audio")
+
+                    #Checking if the element audio is a dict
+                    if not isinstance(audio_data, dict):
+                        raise HTTPException(status_code=400, detail="O campo de audio deve ser um objeto JSON")
+
+                    media_id = audio_data.get("id")
+
+                    #Checking if the element id is a str
+                    if not isinstance(media_id, str) or not media_id:
+                        raise HTTPException(status_code=400, detail="O campo audio.id deve ser uma string não vazia")
+
+                    mime_type = audio_data.get("mime_type")
+
+                    if not isinstance(mime_type, str) or not mime_type:
+                        raise HTTPException(status_code=400, detail="O campo audio.mime_type deve ser uma string não vazia")
+
+                    await run_in_threadpool(save_audio_message, message_id, sender, sent_at, media_id, mime_type, payload)
+
+                    background_task.add_task(process_media_download, message_id, media_id, mime_type)    
                 
     return PlainTextResponse("EVENT_RECEIVED", status_code=200)

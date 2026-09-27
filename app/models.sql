@@ -1,6 +1,6 @@
 -- Criação das tabelas do Agro Zap em PostgreSQL + PostGIS.
 
-CREATE TABLE IF NOT EXISTS messages (
+CREATE TABLE messages (
     message_id TEXT PRIMARY KEY,
     sender TEXT NOT NULL,
     sent_at TIMESTAMPTZ NOT NULL,
@@ -10,4 +10,14 @@ CREATE TABLE IF NOT EXISTS messages (
     payload JSONB NOT NULL
 );
 
-
+CREATE TABLE message_media (
+    message_id TEXT PRIMARY KEY,
+    media_id TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    file_path TEXT,
+    download_status TEXT NOT NULL DEFAULT 'pending' 
+    CHECK(download_status IN ('pending', 'downloaded', 'downloading', 'error')),
+    download_started_at TIMESTAMPTZ NULL,
+    CONSTRAINT fk_message FOREIGN KEY (message_id)
+    REFERENCES messages(message_id)
+);

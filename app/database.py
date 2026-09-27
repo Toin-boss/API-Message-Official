@@ -29,6 +29,77 @@ def save_message(message_id, sender, sent_at, message_type, text_body, payload):
 
     with get_connection() as conn:
         with conn.cursor() as cursor:
-            cursor.execute(sql,(message_id, sender, sent_at, message_type, text_body, Jsonb(payload)))
+            cursor.execute(sql, (message_id, sender, sent_at, message_type, text_body, Jsonb(payload)))
 
+#Save the message and audio into database
+def save_audio_message(message_id, sender, sent_at, media_id, mime_type, payload):
 
+    sql_message = """INSERT INTO messages (message_id, sender, sent_at, message_type, text_body, payload)
+                        VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (message_id) DO NOTHING"""
+
+    sql_media = """INSERT INTO message_media (message_id, media_id, mime_type)
+                    VALUES (%s, %s, %s) ON CONFLICT (message_id) DO NOTHING"""
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql_message, (message_id, sender, sent_at, "audio", None, Jsonb(payload)))
+            cursor.execute(sql_media, (message_id, media_id, mime_type))
+
+#If the audio is downloaded, this function will be executed
+def mark_media_downloaded(message_id, file_path):
+
+    sql = """UPDATE message_media
+            SET file_path = %s, download_status = 'downloaded'
+            WHERE message_id = %s
+            """
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, (file_path, message_id))
+
+#If the download fails, `download_status` will change to 'error'.
+def mark_media_error(message_id):
+
+    sql = """UPDATE message_media
+            SET download_status = 'error'
+            WHERE message_id = %s AND download_status <> 'downloaded'
+            """
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, (message_id,))
+
+#Check the status of file. It could be: 'downloaded', 'pending' or 'error' 
+def get_media_download_status(message_id):
+
+    sql = """SELECT download_status
+            FROM message_media
+            WHERE message_id = %s
+            """
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, (message_id,))
+            row = cursor.fetchone()
+
+    if row is None:
+        return None
+    
+    return row[0]
+
+#The download only starts after this function return True
+def claim_media_download(message_id):
+
+    sql = """UPDATE message_media
+            SET download_status = 'downloading', download_started_at = CURRENT_TIMESTAMP
+            WHERE message_id = %s AND download_status IN ('pending', 'error')
+            RETURNING message_id
+            """
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, (message_id,)) 
+            row = cursor.fetchone()
+
+    return row is not None
+    
