@@ -18,6 +18,10 @@ CREATE TABLE message_media (
     download_status TEXT NOT NULL DEFAULT 'pending' 
     CHECK(download_status IN ('pending', 'downloaded', 'downloading', 'error')),
     download_started_at TIMESTAMPTZ NULL,
+    transcription_text TEXT,
+    transcription_status TEXT NOT NULL DEFAULT 'pending'
+    CHECK(transcription_status IN ('pending', 'processing', 'completed', 'error')),
+    transcription_started_at TIMESTAMPTZ NULL,
     CONSTRAINT fk_message FOREIGN KEY (message_id)
     REFERENCES messages(message_id)
 );

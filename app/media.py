@@ -7,6 +7,7 @@ from uuid import uuid4
 from dotenv import load_dotenv
 from pathlib import Path
 from app.database import mark_media_downloaded, mark_media_error, get_media_download_status, claim_media_download
+from app.transcribe import process_transcription
 
 load_dotenv()
 
@@ -85,15 +86,19 @@ def download_media(media_id, mime_type):
     return str(file_path) #Returns the path as a disc
 
 
+
 """This function processes the audio download:
    - file_path for the path of the file;
    - mark_media_error if the download does not occur
    - mark_media_downloaded if the file downloaded, it will be store in the database
+   - process_transcription for the file downloaded, it will transcribe the audio to text
 """
 def process_media_download(message_id, media_id, mime_type):
 
     download_status = get_media_download_status(message_id)
+
     if download_status == 'downloaded':
+        process_transcription(message_id)
         return 
 
     if download_status is None:
@@ -116,3 +121,4 @@ def process_media_download(message_id, media_id, mime_type):
     else:
         mark_media_downloaded(message_id, file_path)
         logger.info(f"Download concluído para a mensagem: {message_id}")
+        process_transcription(message_id)

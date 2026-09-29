@@ -69,6 +69,7 @@ def mark_media_error(message_id):
         with conn.cursor() as cursor:
             cursor.execute(sql, (message_id,))
 
+
 #Check the status of file. It could be: 'downloaded', 'pending' or 'error' 
 def get_media_download_status(message_id):
 
@@ -87,6 +88,7 @@ def get_media_download_status(message_id):
     
     return row[0]
 
+#This function prevents a single message from being executed twice.
 #The download only starts after this function return True
 def claim_media_download(message_id):
 
@@ -102,4 +104,62 @@ def claim_media_download(message_id):
             row = cursor.fetchone()
 
     return row is not None
+
+
+#This function updates the database to record the audio transcribed into text.
+def mark_transcription_completed(message_id, text):
+
+    sql = """UPDATE message_media
+            SET transcription_text = %s, transcription_status = 'completed'
+            WHERE message_id = %s
+            """
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, (text, message_id))
+
+def mark_transcription_error(message_id):
+
+    sql = """UPDATE message_media
+            SET transcription_status = 'error'
+            WHERE message_id = %s AND transcription_status <> 'completed'
+            """
+    
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, (message_id,))
+
+#This function prevents a single message from being executed twice.
+def claim_transcription(message_id):
+
+    sql = """UPDATE message_media
+            SET transcription_status = 'processing', transcription_started_at = CURRENT_TIMESTAMP
+            WHERE message_id = %s AND transcription_status in ('pending', 'error') AND download_status = 'downloaded'
+            RETURNING message_id
+            """
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, (message_id,))
+            row = cursor.fetchone()
+
+    return row is not None
+
+#This fuction return the file path 
+def get_media_file_path(message_id):
+
+    sql = """SELECT file_path
+            FROM message_media
+            WHERE message_id = %s
+            """
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, (message_id,))
+            row = cursor.fetchone()
+
+    if row is None:
+        return None
+
+    return row[0]
     
