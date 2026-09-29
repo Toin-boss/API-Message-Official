@@ -8,7 +8,7 @@ from app.database import claim_transcription, get_media_file_path, mark_transcri
 
 logger = logging.getLogger("uvicorn.error")
 
-model = WhisperModel("small", device="cpu", compute_type="int8")
+model = WhisperModel("large-v3", device="cpu", compute_type="int8")
 
 def transcribe_audio(file_path):
 
