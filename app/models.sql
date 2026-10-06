@@ -25,3 +25,20 @@ CREATE TABLE message_media (
     CONSTRAINT fk_message FOREIGN KEY (message_id)
     REFERENCES messages(message_id)
 );
+
+CREATE TABLE message_interpretations (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    message_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'processing'
+    CHECK(status IN ('completed','error','processing')),
+    source_text TEXT NOT NULL,
+    model_name TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+    schema_version TEXT NOT NULL,
+    result JSONB,
+    error_message TEXT,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at TIMESTAMPTZ,
+    CONSTRAINT fk_message FOREIGN KEY (message_id)
+    REFERENCES messages(message_id)
+);

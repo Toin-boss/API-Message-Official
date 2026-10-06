@@ -7,6 +7,7 @@ from json import JSONDecodeError
 from dotenv import load_dotenv
 from typing import Annotated
 from app.database import save_message, save_audio_message
+from app.interpret import run_interpretation_background
 from app.media import process_media_download
 from datetime import timezone, datetime
 from fastapi.responses import PlainTextResponse
@@ -139,7 +140,9 @@ async def receive_webhook(request: Request, background_task: BackgroundTasks):
 
                     #Passing the variables that store the values of the JSON elements to the save_message function
                     await run_in_threadpool(save_message, message_id, sender, sent_at, message_type, message_text, payload)
-                
+
+                    background_task.add_task(run_interpretation_background, message_id, message_text)
+
                     logger.info("Mensagem de texto recebida")
 
                 elif message_type == "audio":

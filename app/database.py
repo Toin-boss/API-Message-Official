@@ -162,4 +162,75 @@ def get_media_file_path(message_id):
         return None
 
     return row[0]
-    
+
+#Recording of the interpretation of the text
+def start_interpretation(message_id, source_text, model_name, prompt_version, schema_version):
+
+    sql_lock = """SELECT message_id
+                    FROM messages
+                    WHERE message_id = %s
+                    FOR UPDATE
+                    """
+    sql_select = """SELECT message_id
+                    FROM message_interpretations
+                    WHERE message_id = %s
+                        AND source_text = %s
+                        AND model_name = %s
+                        AND prompt_version = %s
+                        AND schema_version = %s
+                        AND status IN ('processing','completed')
+                    LIMIT 1
+                    """
+
+    sql = """INSERT INTO message_interpretations (message_id, source_text, model_name, prompt_version, schema_version)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
+            """
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql_lock, (message_id,))
+            message_row = cursor.fetchone()
+            if message_row is None:
+                raise ValueError("A mensagem não existe")
+
+            cursor.execute(sql_select, (message_id, source_text, model_name, prompt_version, schema_version))
+            message_interpretation_row = cursor.fetchone()
+
+            if message_interpretation_row is not None:
+                return None
+                
+            cursor.execute(sql, (message_id, source_text, model_name, prompt_version, schema_version))
+            row = cursor.fetchone()
+
+    return row[0]
+
+def mark_interpretation_completed(interpretation_id, result):
+
+    sql = """UPDATE message_interpretations 
+            SET result = %s, status = 'completed', finished_at = CURRENT_TIMESTAMP, error_message = NULL
+            WHERE id = %s AND status = 'processing'
+            RETURNING id 
+            """
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, (Jsonb(result), interpretation_id))
+            row = cursor.fetchone()
+
+    return row is not None
+
+def mark_interpretation_error(interpretation_id, error_message):
+
+    sql = """UPDATE message_interpretations
+            SET status = 'error', error_message = %s, finished_at = CURRENT_TIMESTAMP, result = NULL
+            WHERE id = %s AND status = 'processing'
+            RETURNING id
+            """
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql, (error_message, interpretation_id))
+            row = cursor.fetchone()
+
+    return row is not None

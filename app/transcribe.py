@@ -4,6 +4,7 @@ Estrutura inicial; implementação pendente.
 """
 import logging
 from faster_whisper import WhisperModel
+from app.interpret import run_interpretation_background
 from app.database import claim_transcription, get_media_file_path, mark_transcription_completed, mark_transcription_error
 
 logger = logging.getLogger("uvicorn.error")
@@ -44,3 +45,6 @@ def process_transcription(message_id):
 
     else: 
         mark_transcription_completed(message_id, text)
+
+        if text.strip():
+            run_interpretation_background(message_id, text)
