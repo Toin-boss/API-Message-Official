@@ -6,7 +6,7 @@ import os, hmac, hashlib, logging
 from json import JSONDecodeError
 from dotenv import load_dotenv
 from typing import Annotated
-from app.database import save_message, save_audio_message
+from app.database import save_message, save_audio_message, save_image_message
 from app.interpret import run_interpretation_background
 from app.media import process_media_download
 from datetime import timezone, datetime
@@ -104,7 +104,7 @@ async def receive_webhook(request: Request, background_task: BackgroundTasks):
                 message_type = message.get("type") #Getting the type of the JSON 
                 message_timestamp = message.get("timestamp") #Getting the timestamp of the JSON 
 
-                if message_type not in ("text", "audio"):
+                if message_type not in ("text", "audio", "image"):
                     continue
 
                 #Checking if the element id is a string
@@ -165,6 +165,33 @@ async def receive_webhook(request: Request, background_task: BackgroundTasks):
 
                     await run_in_threadpool(save_audio_message, message_id, sender, sent_at, media_id, mime_type, payload)
 
-                    background_task.add_task(process_media_download, message_id, media_id, mime_type)    
+                    background_task.add_task(process_media_download, message_id, media_id, mime_type)
+
+                elif message_type == "image":
+                    image_data = message.get("image")
+
+                    #Check if the element image is a dict
+                    if not isinstance(image_data, dict):
+                        raise HTTPException(status_code=400, detail="O campo image deve ser um objeto JSON")
+
+                    media_id = image_data.get("id")
+
+                    if not isinstance(media_id, str) or not media_id:
+                        raise HTTPException(status_code=400, detail="O campo image.id deve ser uma string")
+
+                    mime_type = image_data.get("mime_type")
+
+                    if not isinstance(mime_type, str) or not mime_type:
+                        raise HTTPException(status_code=400, detail="O campo image.mime_type deve ser uma string")
+
+                    caption = image_data.get("caption")
+
+                    if caption is not None:
+                        if not isinstance(caption, str):
+                            raise HTTPException(status_code=400, detail="O campo image.caption deve ser uma string")
+
+                    await run_in_threadpool(save_image_message, message_id, sender, sent_at, media_id, mime_type, caption, payload)
+
+                    background_task.add_task(process_media_download, message_id, media_id, mime_type)
                 
     return PlainTextResponse("EVENT_RECEIVED", status_code=200)

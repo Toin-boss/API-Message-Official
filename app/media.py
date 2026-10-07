@@ -60,13 +60,15 @@ def download_media(media_id, mime_type):
     extensions = {
         "audio/ogg":".ogg",
         "audio/mpeg":".mp3",
-        "audio/mp4":".m4a"
+        "audio/mp4":".m4a",
+        "image/jpeg":".jpg",
+        "image/png":".png"
     }
 
     extension = extensions.get(base_mime_type)
 
     if extension is None:
-        raise RuntimeError(f"Tipo de áudio não suportado: {base_mime_type}")
+        raise RuntimeError(f"Tipo de mídia não suportado: {base_mime_type}")
 
     #Generating a random identifier
     filename = f"{uuid4().hex}{extension}"
@@ -78,7 +80,7 @@ def download_media(media_id, mime_type):
     response.raise_for_status()
 
     if not response.content:
-        raise RuntimeError("O arquivo de áudio recebido está vazio")
+        raise RuntimeError("O arquivo de mídia recebido está vazio")
 
     #Writing the bytes to disk
     file_path.write_bytes(response.content)
@@ -96,9 +98,12 @@ def download_media(media_id, mime_type):
 def process_media_download(message_id, media_id, mime_type):
 
     download_status = get_media_download_status(message_id)
+    normalized_mime = mime_type.split(";", 1)[0].strip().lower()
+    is_audio = normalized_mime.startswith("audio/")
 
     if download_status == 'downloaded':
-        process_transcription(message_id)
+        if is_audio:
+            process_transcription(message_id)
         return 
 
     if download_status is None:
@@ -121,4 +126,5 @@ def process_media_download(message_id, media_id, mime_type):
     else:
         mark_media_downloaded(message_id, file_path)
         logger.info(f"Download concluído para a mensagem: {message_id}")
-        process_transcription(message_id)
+        if is_audio:
+            process_transcription(message_id)

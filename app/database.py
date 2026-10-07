@@ -45,6 +45,20 @@ def save_audio_message(message_id, sender, sent_at, media_id, mime_type, payload
             cursor.execute(sql_message, (message_id, sender, sent_at, "audio", None, Jsonb(payload)))
             cursor.execute(sql_media, (message_id, media_id, mime_type))
 
+def save_image_message(message_id, sender, sent_at, media_id, mime_type, caption, payload):
+
+    sql_messages = """INSERT INTO messages (message_id, sender, sent_at, message_type, text_body, payload)
+                        VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (message_id) DO NOTHING"""
+
+    sql_media = """INSERT INTO message_media (message_id, media_id, mime_type, transcription_status)
+                    VALUES (%s, %s, %s, %s) ON CONFLICT (message_id) DO NOTHING"""
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql_messages, (message_id, sender, sent_at, 'image', caption, Jsonb(payload)))
+            cursor.execute(sql_media, (message_id, media_id, mime_type, 'not_applicable'))
+
+
 #If the audio is downloaded, this function will be executed
 def mark_media_downloaded(message_id, file_path):
 
@@ -205,6 +219,7 @@ def start_interpretation(message_id, source_text, model_name, prompt_version, sc
 
     return row[0]
 
+#Marks the interpretation as complete
 def mark_interpretation_completed(interpretation_id, result):
 
     sql = """UPDATE message_interpretations 
@@ -220,6 +235,7 @@ def mark_interpretation_completed(interpretation_id, result):
 
     return row is not None
 
+#Marks the interpretation as an error
 def mark_interpretation_error(interpretation_id, error_message):
 
     sql = """UPDATE message_interpretations
